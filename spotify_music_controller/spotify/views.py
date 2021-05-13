@@ -3,10 +3,11 @@ from .credentials import REDIRECT_URI, CLIENT_ID, CLIENT_SECRET
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from requests import Request, post
+from requests import Request, post, get
 from .models import SpotifyToken
 from django.utils import timezone
 from datetime import timedelta
+from api.models import Room
 
 '''
 Request authorization to access data using: client_id, response_type, redirect_uri and scope
@@ -107,3 +108,65 @@ class IsAuthenticated(APIView):
     def get(self, request, format=None):
         is_authenticated = is_spotify_authenticated(self.request.session.session_key)
         return Response({'status': is_authenticated}, status=status.HTTP_200_OK)
+
+class CurrentSong(APIView):
+    def get(self, request, format=None):
+        # Only the host's session key will be liked to the spotify account. So if the client requesting 
+        # to the Spotify API is not the host, then we first need to figure out what room they are, and then
+        # grab the host's session key
+        room_code = self.request.session.get('in_room') 
+        rooms = Room.objects.filter(code=room_code)
+
+        if rooms.exists():
+            room = rooms.first()
+        else:
+            return Response({'Error': 'Room Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        host = room.host # this is the session key
+        # Documentation: https://developer.spotify.com/documentation/web-api/reference/#endpoint-currently-playing
+        endpoint = "https://api.spotify.com/v1/me/player/currently-playing"
+        tokens = get_user_tokens(host)
+        headers = {'Content-Type': 'application/json', 'Authorization': "Bearer " + tokens.access_token}
+        response = get(endpoint, {}, headers=headers)
+
+        if response.reason != 'OK':
+            if response.reason == 'No Content':
+                return Response({'Error': response.reason + " - Make sure Spotify is open and a song is playing."}, status=status.HTTP_204_NO_CONTENT)
+            Response({'Error': response.reason}, status=status.HTTP_400_BAD_REQUEST)
+
+        response = response.json()
+
+        if 'error' in response :
+                return Response({ 'Error' : response.get('error').get('message')}, status=response.get('error').get('status'))
+
+        if 'item' not in response:
+            return Response({'Error': 'Issue with Request'}, status=status.HTTP_204_NO_CONTENT)
+
+        item = response.get('item')
+        title = item.get('name')
+        song_id = item.get('id')
+        duration = item.get('duration_ms')
+        progress = response.get('progress_ms')
+        album_cover = item.get('album').get('images')[0].get('url')
+        is_playing = response.get('is_playing')
+
+        artists_string = ''
+
+        for i, artist in enumerate(item.get('artists')):
+            if i > 0:
+                artists_string += ', '
+            name = artist.get('name')
+            artists_string += name
+
+        song = {
+            'title': title,
+            'id': song_id,
+            'artist': artists_string,
+            'duration': duration,
+            'progress': progress,
+            'img_url': album_cover,
+            'is_playing': is_playing,
+            'votes': 0
+        }
+        
+        return Response(song, status=status.HTTP_200_OK)
+

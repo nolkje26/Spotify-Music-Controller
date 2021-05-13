@@ -10,7 +10,8 @@ function Room(props) {
         votesToSkip: defaultVotes,
         isHost: false,
         showSettings: false,
-        isSpotifyAuthenticated: false
+        isSpotifyAuthenticated: false, 
+        song: {}
     })
 
     const code = props.match.params.code;
@@ -26,6 +27,20 @@ function Room(props) {
             }
         ))
     }
+
+    const getCurrentSong = async () => {
+        const response = await fetch('/spotify/current-song')
+        if (!response.ok) {
+            return {}
+        }
+        const data = await response.json()
+        console.log(data)
+        setState((prevState) => (
+            {...prevState,
+                song: data
+            })
+        )
+    }
     
     const authenticateSpotify = async () => {
         const response = await fetch("/spotify/is-authenticated");
@@ -40,6 +55,7 @@ function Room(props) {
             const url_data = await url_resp.json()
             window.location.replace(url_data.url)
         }
+        getCurrentSong()
     }
 
     const updateShowSettings = (boolVal) => {
@@ -105,21 +121,6 @@ function Room(props) {
             <Grid item xs={12}>
                 <Typography variant="h6" component="h6">
                     Code: {code}
-                </Typography>
-            </Grid>
-            <Grid item xs={12}>
-                <Typography variant="h6" component="h6">
-                    Guest Can Pause: {state.guestCanPause.toString()}
-                </Typography>
-            </Grid>
-            <Grid item xs={12}>
-                <Typography variant="h6" component="h6">
-                    Votes to Skip: {state.votesToSkip.toString()}
-                </Typography>
-            </Grid>
-            <Grid item xs={12}>
-                <Typography variant="h6" component="h6">
-                    Host: {state.isHost.toString()}
                 </Typography>
             </Grid>
             {state.isHost ? renderSettingsButton() : null}
