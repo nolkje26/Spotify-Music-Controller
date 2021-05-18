@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import useInterval from "./useInterval";
 import { Grid, Button, Typography } from "@material-ui/core";
-import CreateRoom from "./CreateRoom"
+import CreateRoom from "./CreateRoom";
+import MusicPlayer from "./MusicPlayer";
 
 function Room(props) {
     const defaultVotes = 2;
@@ -30,11 +32,15 @@ function Room(props) {
 
     const getCurrentSong = async () => {
         const response = await fetch('/spotify/current-song')
-        if (!response.ok) {
+        if (response.status === 401) {
+            authenticateSpotify();
+        } else if (response.status === 204){
+            return console.log("Please play a song.")
+        } else if (!response.ok) {
             return {}
         }
         const data = await response.json()
-        console.log(data)
+        
         setState((prevState) => (
             {...prevState,
                 song: data
@@ -55,7 +61,6 @@ function Room(props) {
             const url_data = await url_resp.json()
             window.location.replace(url_data.url)
         }
-        getCurrentSong()
     }
 
     const updateShowSettings = (boolVal) => {
@@ -103,14 +108,21 @@ function Room(props) {
     }
 
     useEffect( () => {
-        getRoom();
-    }, []);
-
-    useEffect( () => {
         if (state.isHost) {
             authenticateSpotify();
         }
     }, [state.isHost]);
+
+    useEffect(()=>{
+        getRoom();
+    }, []);
+    
+
+    useInterval(() => {
+        getCurrentSong();
+        // console.log(state.song);
+      }, 1000);
+
 
     if (state.showSettings) {
         return renderSettings()
@@ -123,7 +135,10 @@ function Room(props) {
                     Code: {code}
                 </Typography>
             </Grid>
-            {state.isHost ? renderSettingsButton() : null}
+            <Grid item xs={12}>
+                <MusicPlayer {...state.song} />
+            </Grid>
+            { state.isHost ? renderSettingsButton() : null }
             <Grid item xs={12}>
                 <Button variant="contained" color="secondary" onClick={handleLeaveRoomButtonClicked}>
                     Leave Room

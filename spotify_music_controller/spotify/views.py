@@ -114,6 +114,7 @@ class CurrentSong(APIView):
         # Only the host's session key will be liked to the spotify account. So if the client requesting 
         # to the Spotify API is not the host, then we first need to figure out what room they are, and then
         # grab the host's session key
+
         room_code = self.request.session.get('in_room') 
         rooms = Room.objects.filter(code=room_code)
 
@@ -127,11 +128,13 @@ class CurrentSong(APIView):
         tokens = get_user_tokens(host)
         headers = {'Content-Type': 'application/json', 'Authorization': "Bearer " + tokens.access_token}
         response = get(endpoint, {}, headers=headers)
-
-        if response.reason != 'OK':
+        
+        if response.reason and response.reason != 'OK':
             if response.reason == 'No Content':
-                return Response({'Error': response.reason + " - Make sure Spotify is open and a song is playing."}, status=status.HTTP_204_NO_CONTENT)
-            Response({'Error': response.reason}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'Error': " Play something on Spotify."}, status=status.HTTP_204_NO_CONTENT)
+            elif response.reason == 'Unauthorized': 
+                return Response({'Error': " Please sign in."}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'Error': response.reason}, status=status.HTTP_400_BAD_REQUEST)
 
         response = response.json()
 
@@ -146,7 +149,7 @@ class CurrentSong(APIView):
         song_id = item.get('id')
         duration = item.get('duration_ms')
         progress = response.get('progress_ms')
-        album_cover = item.get('album').get('images')[0].get('url')
+        album_cover = item.get('album').get('images')[1].get('url')
         is_playing = response.get('is_playing')
 
         artists_string = ''

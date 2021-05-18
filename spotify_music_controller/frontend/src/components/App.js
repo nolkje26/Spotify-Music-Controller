@@ -14,7 +14,7 @@ function App() {
     const response = await fetch("/api/user-in-room");
     const data = await response.json();
     setState({ code: data.code });
-  }, [])
+  }, [state.code])
 
   return (
     <div className="center">
